@@ -1,0 +1,84 @@
+import requests
+import pandas as pd
+import datetime
+import time
+
+# Initialize the starting year and month for data retrieval
+month = _____ #enter the number of the month
+year = _____
+
+# Define the path to the CSV file where the historical data will be stored
+path_csv = r"____________" #path of the csv file where you want to save this
+
+# Read the existing data from the CSV file to append new data
+existing_data = pd.read_csv(path_csv)
+
+# Loop through each month of the year to fetch data
+while month < 13:
+    if month == 12:  # If it's December, fetch data till the end of the year
+        start_date = datetime.datetime(year, 12, 1)
+        end_date = datetime.datetime(year, 12, 31)
+    else:  # For other months, fetch data till the start of the next month
+        start_date = datetime.datetime(year, month, 1)
+        end_date = datetime.datetime(year, month + 1, 1)
+
+    token = 738561  # Zerodha instrument token for Reliance (change this for other instruments)
+    timeframe = "minute"  # Fetch minute-level data
+
+    # Authorization token (Must be refreshed periodically)
+    enctoken = "_____________________"
+
+    # The enctoken changes frequently; ensure you generate a valid one before running the script
+    header = {
+        "Authorization": f"enctoken {enctoken}"
+    }
+
+    # Zerodha API endpoint for fetching historical data
+    url = f"https://kite.zerodha.com/oms/instruments/historical/{token}/{timeframe}"
+
+    # Define API parameters including date range
+    param = {
+        "oi": 1,  # Fetch Open Interest (OI) data (optional)
+        "from": start_date,
+        "to": end_date
+    }
+
+    # Initialize a session for making requests
+    session = requests.session()
+
+    # Fetch the data from the API
+    response = session.get(url, params=param, headers=header)
+
+    # Extract the candle data (time series OHLCV format)
+    data = response.json()["data"]["candles"]
+
+    # Convert the retrieved data into a Pandas DataFrame
+    df = pd.DataFrame(data)
+
+    # Assign column names (including a dummy column sometimes included by the API)
+    df.columns = ['Date', 'open', 'high', 'low', 'close', 'volume', 'dummy']
+
+    # Set the "Date" column as the index for time-series data
+    df.set_index('Date', inplace=True)
+
+    # Remove the unnecessary "dummy" column
+    df.drop("dummy", axis=1, inplace=True)
+
+    # Display the fetched data in the console
+    print(df)
+
+    # Append new data to the existing CSV file
+    existing_data = pd.concat([existing_data, df], ignore_index=False)
+    existing_data.to_csv(path_csv)
+
+    # Wait for 5 seconds to avoid hitting the API rate limits
+    time.sleep(5)
+
+    # Increment the month
+    if month == 12:
+        month = 1
+        year += 1  # Move to the next year
+        if year == 2025:  # Stop execution after fetching data till the year you want
+            break
+    else:
+        month += 1
